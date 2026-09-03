@@ -1,0 +1,7 @@
+# local Claude Code settings
+.claude/
+
+# build artifact — regenerate with: python3 device/build_amxd.py
+device/InfiniteDrummer.amxd
+
+.DS_Store
