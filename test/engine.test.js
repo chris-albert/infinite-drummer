@@ -20,10 +20,11 @@ var engine = require(path.join(__dirname, "..", "device", "infinite-drummer.js")
 function setup(over) {
   controls = {
     g_amount: 100, g_drift: 0, g_bars: 4, g_look: 10, g_soft: 0,
-    r1_note: 38, r1_jit: 0, r1_late: 5, r1_vel: 0, r1_acc: 0, r1_chance: 100,
-    r2_note: 42, r2_jit: 0, r2_late: 0, r2_vel: 0, r2_acc: 0, r2_chance: 100
+    r1_name: "", r1_note: 38, r1_jit: 0, r1_late: 5, r1_vel: 0, r1_acc: 0, r1_chance: 100,
+    r2_name: "", r2_note: 42, r2_jit: 0, r2_late: 0, r2_vel: 0, r2_acc: 0, r2_chance: 100
   };
   for (var i = 3; i <= 8; i++) {
+    controls["r" + i + "_name"] = "";
     controls["r" + i + "_note"] = 0;
     ["jit", "late", "vel", "acc", "chance"].forEach(function (k) { controls["r" + i + "_" + k] = 0; });
   }
@@ -35,6 +36,7 @@ function setup(over) {
 }
 
 function notes() { return out.filter(function (m) { return m[0] !== 1; }); }
+function lastReadout() { return out.filter(function (m) { return m[0] === 1; }).pop()[2]; }
 function hit(note, vel) { engine.list(note, vel); return notes(); }
 function close(a, b, eps) { assert.ok(Math.abs(a - b) <= (eps || 1e-6), a + " != " + b); }
 
@@ -164,6 +166,26 @@ var tests = {
     assert.strictEqual(r.length, 1);
     assert.strictEqual(r[0][1], "set");
     assert.ok(/^SD/.test(r[0][2]), r[0][2]);
+  },
+  "readout uses the row's name when it has one": function () {
+    setup({ r1_name: "Snare" });
+    engine.list(38, 100);
+    assert.ok(/^Snare  /.test(lastReadout()), lastReadout());
+    setup({ r1_name: "Snare", r1_chance: 0 });
+    engine.list(38, 100);
+    assert.strictEqual(lastReadout(), "Snare  skipped");
+  },
+  "multi-word names arrive as a list and are joined": function () {
+    setup({ r1_name: ["Side", "Stick"] });
+    engine.list(38, 100);
+    assert.ok(/^Side Stick  /.test(lastReadout()), lastReadout());
+  },
+  "blank name falls back to the TR-8S map, then the note number": function () {
+    setup({ r1_name: "  ", r2_note: 99 });
+    engine.list(38, 100);
+    assert.ok(/^SD  /.test(lastReadout()), lastReadout());
+    engine.list(99, 100);
+    assert.ok(/^n99  /.test(lastReadout()), lastReadout());
   },
   "missing control reads as 0 instead of throwing": function () {
     setup();

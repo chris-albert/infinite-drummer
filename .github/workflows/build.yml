@@ -1,0 +1,55 @@
+name: build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Test the engine
+        run: node test/engine.test.js
+
+      - name: Generate the patcher
+        run: python3 device/gen_maxpat.py
+
+      - name: Build the .amxd
+        run: python3 device/build_amxd.py
+
+      # The .amxd must sit next to infinite-drummer.js: an unfrozen device loads
+      # the [js] file from beside itself. Ship them together.
+      - name: Upload the device
+        uses: actions/upload-artifact@v4
+        with:
+          name: InfiniteDrummer
+          path: |
+            device/InfiniteDrummer.amxd
+            device/infinite-drummer.js
+            device/infinite-drummer.maxpat
+          if-no-files-found: error
+
+      # Keep the committed patcher in sync with the generator so a local
+      # checkout never has a stale .maxpat.
+      - name: Commit the regenerated patcher
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          if git diff --quiet -- device/infinite-drummer.maxpat; then
+            echo "patcher is up to date"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add device/infinite-drummer.maxpat
+          git commit -m "Regenerate infinite-drummer.maxpat"
+          git push
