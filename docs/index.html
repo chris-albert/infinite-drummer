@@ -1,0 +1,459 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Infinite Drummer</title>
+<meta name="description" content="A free Max for Live MIDI effect that makes programmed drums sound played. Per-instrument timing, velocity and chance for the Ableton → TR-8S rig.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800&family=Instrument+Sans:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --bg: #121214;
+    --panel: #1d1d20;
+    --panel-2: #26262a;
+    --chip: #0b0b0d;
+    --line: #333338;
+    --line-strong: #4a4a52;
+    --text: #eceae3;
+    --muted: #9b9993;
+    --accent: #ff7a1a;
+    --accent-ink: #1a0d00;
+    --cyan: #4cc3e0;
+    --grid: #2c2c31;
+    color-scheme: dark;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --bg: #ededf0;
+      --panel: #ffffff;
+      --panel-2: #f4f4f6;
+      --chip: #1a1a1e;
+      --line: #d6d6dc;
+      --line-strong: #b9b9c2;
+      --text: #17171a;
+      --muted: #5f5f68;
+      --accent: #e8620a;
+      --accent-ink: #ffffff;
+      --cyan: #1890ad;
+      --grid: #dcdce2;
+      color-scheme: light;
+    }
+  }
+  :root[data-theme="light"] {
+    --bg: #ededf0;
+    --panel: #ffffff;
+    --panel-2: #f4f4f6;
+    --chip: #1a1a1e;
+    --line: #d6d6dc;
+    --line-strong: #b9b9c2;
+    --text: #17171a;
+    --muted: #5f5f68;
+    --accent: #e8620a;
+    --accent-ink: #ffffff;
+    --cyan: #1890ad;
+    --grid: #dcdce2;
+    color-scheme: light;
+  }
+
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Instrument Sans", "Helvetica Neue", Arial, sans-serif;
+    font-size: 17px;
+    line-height: 1.55;
+  }
+  a { color: inherit; }
+  a:focus-visible, button:focus-visible { outline: 2px solid var(--cyan); outline-offset: 3px; }
+
+  .wrap { width: min(1120px, 100% - 2 * clamp(20px, 5vw, 56px)); margin-inline: auto; }
+  .prose { max-width: 66ch; }
+
+  h1, h2, h3 { font-family: "Big Shoulders Display", "Arial Narrow", Impact, sans-serif; text-wrap: balance; margin: 0; }
+  h1 { font-weight: 800; font-size: clamp(56px, 9vw, 128px); line-height: 0.92; letter-spacing: -0.01em; text-transform: uppercase; }
+  h2 { font-weight: 800; font-size: clamp(34px, 4.5vw, 54px); line-height: 1; text-transform: uppercase; }
+  h3 { font-weight: 700; font-size: 24px; line-height: 1.1; text-transform: uppercase; letter-spacing: 0.01em; }
+  p { margin: 0; }
+  .lede { font-size: clamp(18px, 2vw, 22px); line-height: 1.5; color: var(--text); }
+  .mono, code, .eyebrow, .val { font-family: "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace; }
+  .eyebrow { font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+  .eyebrow b { color: var(--accent); font-weight: 500; }
+  .num { font-variant-numeric: tabular-nums; }
+
+  /* ---------- top bar: the device's own title strip ---------- */
+  .bar {
+    display: flex; align-items: center; gap: 12px;
+    padding: 14px 0; border-bottom: 1px solid var(--line);
+    font-weight: 600;
+  }
+  .led { width: 16px; height: 16px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent); }
+  .bar .spacer { flex: 1; }
+  .bar a { text-decoration: none; font-weight: 500; font-size: 15px; color: var(--muted); }
+  .bar a:hover { color: var(--text); }
+
+  /* ---------- hero ---------- */
+  .hero { padding: clamp(48px, 8vw, 96px) 0 clamp(32px, 5vw, 56px); display: grid; gap: 28px; }
+  .hero h1 span { color: var(--accent); }
+  .cta { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 12px 20px; border-radius: 4px; text-decoration: none; font-weight: 600; font-size: 16px;
+    border: 1px solid var(--line-strong); color: var(--text);
+  }
+  .btn:hover { border-color: var(--text); }
+  .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .btn.primary:hover { filter: brightness(1.08); }
+  .cta .note { font-size: 14px; color: var(--muted); }
+
+  /* ---------- device frame ---------- */
+  .device { margin-top: 12px; }
+  .device figure { margin: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 10px; overflow-x: auto; }
+  .device img { display: block; width: 100%; max-width: 1250px; height: auto; border-radius: 3px; }
+  .device figcaption { display: flex; flex-wrap: wrap; gap: 8px 24px; padding: 12px 4px 2px; font-size: 14px; color: var(--muted); }
+  .device figcaption span::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--cyan); margin-right: 8px; vertical-align: 1px; }
+
+  /* ---------- sections ---------- */
+  section { padding: clamp(48px, 7vw, 88px) 0; border-top: 1px solid var(--line); }
+  .sec-head { display: grid; gap: 14px; margin-bottom: 32px; }
+  .sec-head .prose { color: var(--muted); }
+
+  /* ---------- timing strip ---------- */
+  .strip { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 18px 18px 12px; }
+  .strip-head { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; flex-wrap: wrap; margin-bottom: 10px; }
+  .strip-head .eyebrow { color: var(--muted); }
+  .strip canvas { display: block; width: 100%; height: 150px; }
+  .readout {
+    margin-top: 14px; display: inline-block; min-width: 20ch;
+    padding: 8px 14px; background: var(--chip); color: #f2f0ea; border-radius: 4px;
+    font-family: "JetBrains Mono", monospace; font-size: 15px; font-variant-numeric: tabular-nums;
+  }
+  .legend { display: flex; gap: 20px; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; }
+
+  /* ---------- controls table ---------- */
+  .tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); }
+  table { border-collapse: collapse; width: 100%; min-width: 720px; font-size: 15.5px; }
+  th, td { text-align: left; padding: 13px 16px; vertical-align: top; border-top: 1px solid var(--line); }
+  thead th { border-top: 0; font-family: "JetBrains Mono", monospace; font-weight: 500; font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); background: var(--panel-2); }
+  td.ctl { white-space: nowrap; font-weight: 600; }
+  td.scope { white-space: nowrap; }
+  .tag { display: inline-block; font-family: "JetBrains Mono", monospace; font-size: 12px; letter-spacing: 0.06em; padding: 2px 8px; border-radius: 3px; border: 1px solid var(--line-strong); color: var(--muted); }
+  .tag.row { color: var(--cyan); border-color: color-mix(in srgb, var(--cyan) 50%, transparent); }
+  .tag.kit { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 50%, transparent); }
+  .val { display: inline-block; background: var(--chip); color: #f2f0ea; padding: 1px 8px; border-radius: 3px; font-size: 14px; }
+
+  /* ---------- presets ---------- */
+  .presets { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+  .preset { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 22px; display: grid; gap: 14px; align-content: start; }
+  .preset h3 { color: var(--text); }
+  .preset p { color: var(--muted); font-size: 15.5px; }
+  .preset dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; font-size: 14px; }
+  .preset dt { color: var(--muted); }
+  .preset dd { margin: 0; font-family: "JetBrains Mono", monospace; font-variant-numeric: tabular-nums; }
+
+  /* ---------- flow ---------- */
+  .flow { display: flex; align-items: stretch; flex-wrap: wrap; gap: 0; font-family: "JetBrains Mono", monospace; font-size: 14px; }
+  .flow .node { padding: 14px 18px; border: 1px solid var(--line-strong); border-radius: 4px; background: var(--panel); }
+  .flow .node.hot { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+  .flow .node small { display: block; font-family: "Instrument Sans", sans-serif; color: var(--muted); margin-top: 4px; }
+  .flow .wire { flex: 0 0 auto; width: 40px; display: flex; align-items: center; }
+  .flow .wire::before { content: ""; height: 1px; width: 100%; background: var(--line-strong); }
+  @media (max-width: 640px) {
+    .flow { flex-direction: column; }
+    .flow .wire { width: auto; height: 28px; justify-content: center; }
+    .flow .wire::before { width: 1px; height: 100%; }
+  }
+
+  /* ---------- install ---------- */
+  .steps { counter-reset: step; list-style: none; margin: 0; padding: 0; display: grid; gap: 18px; max-width: 70ch; }
+  .steps li { display: grid; grid-template-columns: 44px 1fr; gap: 16px; align-items: start; }
+  .steps li::before { counter-increment: step; content: counter(step); font-family: "Big Shoulders Display", sans-serif; font-weight: 800; font-size: 36px; line-height: 1; color: var(--accent); }
+  .steps li p { font-size: 16px; }
+  .steps code { background: var(--panel-2); border: 1px solid var(--line); padding: 1px 6px; border-radius: 3px; font-size: 14px; }
+  pre { margin: 0; background: var(--chip); color: #f2f0ea; padding: 14px 16px; border-radius: 4px; overflow-x: auto; font-family: "JetBrains Mono", monospace; font-size: 14px; line-height: 1.5; }
+  pre .c { color: #8e8c86; }
+
+  footer { border-top: 1px solid var(--line); padding: 32px 0 48px; color: var(--muted); font-size: 14px; display: flex; flex-wrap: wrap; gap: 8px 28px; }
+  footer a { color: var(--muted); }
+  footer a:hover { color: var(--text); }
+
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+
+<header class="wrap">
+  <div class="bar">
+    <span class="led" aria-hidden="true"></span>
+    <span>InfiniteDrummer</span>
+    <span class="spacer"></span>
+    <a href="#controls">Controls</a>
+    <a href="#install">Install</a>
+    <a href="https://github.com/chris-albert/infinite-drummer">GitHub</a>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <div class="hero">
+    <p class="eyebrow"><b>Max for Live</b> · MIDI effect · Ableton Live → Roland TR-8S · free</p>
+    <h1>Programmed drums<br>that sound <span>played.</span></h1>
+    <p class="lede prose">Infinite Drummer sits between your Live drum clip and the TR-8S and nudges every hit. Each instrument gets its own timing, velocity and chance on one panel, so the hats can be loose and the kick can stay tight. Kit-wide drift, grid accents and the drag of a soft note do the rest.</p>
+    <div class="cta">
+      <a class="btn primary" href="https://github.com/chris-albert/infinite-drummer/actions">Download the device</a>
+      <a class="btn" href="https://github.com/chris-albert/infinite-drummer">Source on GitHub</a>
+      <span class="note">Grab the <span class="mono">InfiniteDrummer</span> artifact from the latest build.</span>
+    </div>
+
+    <div class="device">
+      <figure>
+        <img src="screenshot.png" width="1250" height="458" alt="The Infinite Drummer device in Ableton Live: an Amount dial and global Drift, Drift bars, Lookahead and Soft = late fields on the left, and eight instrument rows with Name, Note, Jitter, Late, Vel ±, Accent and Chance columns on the right. A readout at the bottom-left says waiting for notes.">
+        <figcaption>
+          <span>Eight instrument rows, TR-8S note map by default</span>
+          <span>One Amount knob scales every deviation</span>
+          <span>Readout shows the last hit's name, offset and velocity</span>
+        </figcaption>
+      </figure>
+    </div>
+  </div>
+
+  <section id="how">
+    <div class="sec-head">
+      <p class="eyebrow">What it does</p>
+      <h2>Every hit moves a little. None of them move the same.</h2>
+      <p class="prose">A drummer does not quantise. Hats wander a few milliseconds, the snare lays back, ghost notes arrive late and quiet. Below is two bars of a kick, snare and closed hat pattern as Live sends it, then as the device passes it on with the default settings. Re-rolled every bar, like the real thing.</p>
+    </div>
+
+    <div class="strip">
+      <div class="strip-head">
+        <span class="eyebrow">Two bars · 16th grid · Amount <b>100 %</b></span>
+        <div class="legend">
+          <span><i style="background: var(--grid)"></i>Grid</span>
+          <span><i style="background: var(--cyan)"></i>Humanized hit (size = velocity)</span>
+          <span><i style="background: var(--accent)"></i>Dropped by Chance</span>
+        </div>
+      </div>
+      <canvas id="strip" width="1200" height="150" role="img" aria-label="Three rows of drum hits shown against a 16th-note grid. Each hit sits slightly before or after its grid line, with varying size for velocity."></canvas>
+      <div class="readout num" id="readout">waiting for notes</div>
+    </div>
+  </section>
+
+  <section id="path">
+    <div class="sec-head">
+      <p class="eyebrow">Signal path</p>
+      <h2>Live keeps the sequence. The TR-8S just plays.</h2>
+      <p class="prose">Drop it on the MIDI track that feeds the drum machine. Notes that match no row pass through untouched. CC, pitch bend, pressure and program changes go straight through. Note-offs follow their note-on by exactly the same delay, and a hit dropped by Chance drops its note-off too, so it is equally safe in front of a Drum Rack.</p>
+    </div>
+    <div class="flow">
+      <div class="node">Live drum clip<small>your programmed pattern</small></div>
+      <div class="wire" aria-hidden="true"></div>
+      <div class="node hot">Infinite Drummer<small>per-row jitter, late, vel ±, accent, chance<br>kit-wide amount, drift, lookahead, soft = late</small></div>
+      <div class="wire" aria-hidden="true"></div>
+      <div class="node">MIDI To: TR-8S<small>or External Instrument, or a Drum Rack</small></div>
+    </div>
+  </section>
+
+  <section id="controls">
+    <div class="sec-head">
+      <p class="eyebrow">Controls</p>
+      <h2>Per row, or the whole kit.</h2>
+      <p class="prose">Incoming notes are matched against the eight rows by MIDI note. Everything a matched hit gets is listed here, with the defaults you saw in the screenshot. Timing is in milliseconds, velocity in MIDI steps.</p>
+    </div>
+    <div class="tablewrap">
+      <table>
+        <thead>
+          <tr><th>Control</th><th>Scope</th><th>What it does</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="ctl">Name</td><td class="scope"><span class="tag row">per row</span></td><td>A label so you can tell the hats from the snare. Click, type, press Enter. Defaults to the TR-8S abbreviations and is saved with the Live set.</td></tr>
+          <tr><td class="ctl">Note</td><td class="scope"><span class="tag row">per row</span></td><td>Which MIDI note this row catches. Defaults are the TR-8S map: BD <span class="val">36</span> SD <span class="val">38</span> CH <span class="val">42</span> OH <span class="val">46</span> RS <span class="val">37</span> HC <span class="val">39</span> LT <span class="val">43</span> MT <span class="val">47</span>.</td></tr>
+          <tr><td class="ctl">Jitter</td><td class="scope"><span class="tag row">per row</span></td><td>Random timing, ± this many ms. Hats want more than kicks: the defaults run from <span class="val">3 ms</span> on the kick to <span class="val">8 ms</span> on the hats.</td></tr>
+          <tr><td class="ctl">Late</td><td class="scope"><span class="tag row">per row</span></td><td>Fixed timing bias in ms. Positive lays back, negative pushes. Negative values need Lookahead.</td></tr>
+          <tr><td class="ctl">Vel ±</td><td class="scope"><span class="tag row">per row</span></td><td>Random velocity spread in MIDI steps.</td></tr>
+          <tr><td class="ctl">Accent</td><td class="scope"><span class="tag row">per row</span></td><td>Velocity shaping by grid position. Hits on the beat get +Accent, the "&amp;" gets a quarter of it, the "e" and "a" lose half. The bar's downbeat gets an extra half.</td></tr>
+          <tr><td class="ctl">Chance</td><td class="scope"><span class="tag row">per row</span></td><td>Probability the hit plays at all. Made for ghost notes and busy hat patterns.</td></tr>
+          <tr><td class="ctl">Amount</td><td class="scope"><span class="tag kit">whole kit</span></td><td>Scales every timing and velocity deviation from <span class="val">0 %</span> to <span class="val">200 %</span>. This is the performance knob: map it to a controller and ride it. Chance is not scaled.</td></tr>
+          <tr><td class="ctl">Drift</td><td class="scope"><span class="tag kit">whole kit</span></td><td>A slow push and drag of the whole kit, ± this many ms, following a sine that loops every <b>Drift bars</b> bars of song position.</td></tr>
+          <tr><td class="ctl">Lookahead</td><td class="scope"><span class="tag kit">whole kit</span></td><td>Delays everything by this much so rows can be early. Compensate with the track's Track Delay set to −Lookahead ms.</td></tr>
+          <tr><td class="ctl">Soft = late</td><td class="scope"><span class="tag kit">whole kit</span></td><td>Soft hits land up to this many ms late, hard hits equally early. Ghost notes drag, rimshots dig in.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="presets">
+    <div class="sec-head">
+      <p class="eyebrow">Starting points</p>
+      <h2>Three ways to set it.</h2>
+    </div>
+    <div class="presets">
+      <article class="preset">
+        <h3>Tight electronic</h3>
+        <p>Barely there. Enough to stop the machine sounding like a machine.</p>
+        <dl>
+          <dt>Amount</dt><dd>60 %</dd>
+          <dt>Drift</dt><dd>0 ms</dd>
+          <dt>Soft = late</dt><dd>0 ms</dd>
+          <dt>Jitter</dt><dd>2–4 ms, every row</dd>
+        </dl>
+      </article>
+      <article class="preset">
+        <h3>Live band</h3>
+        <p>The defaults. A drummer who has had one coffee and is listening to the bass player.</p>
+        <dl>
+          <dt>Drift</dt><dd>3 ms over 8 bars</dd>
+          <dt>Soft = late</dt><dd>2 ms</dd>
+          <dt>Hats</dt><dd>Jitter 8, Vel ± 18</dd>
+          <dt>Snare</dt><dd>Late 2 ms</dd>
+        </dl>
+      </article>
+      <article class="preset">
+        <h3>Falling apart on purpose</h3>
+        <p>Map Amount to a fader and push it past 100 % for the last chorus.</p>
+        <dl>
+          <dt>Amount</dt><dd>100 → 200 %</dd>
+          <dt>Everything else</dt><dd>as Live band</dd>
+        </dl>
+      </article>
+    </div>
+  </section>
+
+  <section id="install">
+    <div class="sec-head">
+      <p class="eyebrow">Install</p>
+      <h2>Four steps.</h2>
+      <p class="prose">Every push builds the device on GitHub Actions. Open the latest run and download the <span class="mono">InfiniteDrummer</span> artifact, which holds the .amxd, the .js engine and the .maxpat. Or build it yourself:</p>
+      <pre><span class="c"># in the repo</span>
+python3 device/build_amxd.py      <span class="c"># writes device/InfiniteDrummer.amxd</span></pre>
+    </div>
+    <ol class="steps">
+      <li><p>Drag <code>InfiniteDrummer.amxd</code> onto the MIDI track that feeds the TR-8S, before the External Instrument, or as the last MIDI effect if you use the track's MIDI To routing.</p></li>
+      <li><p>Keep the .amxd next to <code>infinite-drummer.js</code>. An unfrozen device finds its engine by looking beside itself. If you want a single file to hand around, open the device in Max and freeze it.</p></li>
+      <li><p>Check that the TR-8S is responding to MIDI velocity under System → MIDI settings. If every hit is full volume, the velocity work is invisible.</p></li>
+      <li><p>If you use negative Late values, set Lookahead to cover them and put −Lookahead ms in the track's Track Delay so the kit stays on the grid.</p></li>
+    </ol>
+  </section>
+
+</main>
+
+<footer class="wrap">
+  <span>Built for Live 11 Suite and Max 8.5. Live 12 works too.</span>
+  <span>Made for the Infinite Bits rig.</span>
+  <a href="https://github.com/chris-albert/infinite-drummer">github.com/chris-albert/infinite-drummer</a>
+</footer>
+
+<script>
+(function () {
+  var canvas = document.getElementById('strip');
+  var readout = document.getElementById('readout');
+  if (!canvas || !canvas.getContext) return;
+  var ctx = canvas.getContext('2d');
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // Two bars of 16ths, three rows, default row settings from the device.
+  var STEPS = 32, MS_PER_16TH = 125; // 120 bpm
+  var rows = [
+    { name: 'CH', jitter: 8, late: 0, vel: 18, accent: 10, chance: 0.9,
+      pattern: [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1] },
+    { name: 'SD', jitter: 5, late: 2, vel: 10, accent: 6, chance: 1,
+      pattern: [0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,1] },
+    { name: 'BD', jitter: 3, late: 0, vel: 6, accent: 4, chance: 1,
+      pattern: [1,0,0,0,0,0,0,1,0,0,1,0,0,0,0,0,1,0,0,0,0,0,0,1,0,0,1,0,0,0,1,0] }
+  ];
+  var SOFT_LATE = 2, DRIFT = 3, DRIFT_BARS = 8;
+  var css = getComputedStyle(document.documentElement);
+  function tok(n) { return css.getPropertyValue(n).trim(); }
+
+  function rnd(a) { return (Math.random() * 2 - 1) * a; }
+  function accentFor(step, acc) {
+    var s = step % 16;
+    var a = 0;
+    if (s % 4 === 0) a = acc; else if (s % 4 === 2) a = acc * 0.25; else a = -acc * 0.5;
+    if (s === 0) a += acc * 0.5;
+    return a;
+  }
+
+  var bar = 0, hits = [];
+  function roll() {
+    hits = [];
+    rows.forEach(function (r, ri) {
+      r.pattern.forEach(function (on, i) {
+        if (!on) return;
+        var dropped = Math.random() > r.chance;
+        var vel = 96 + accentFor(i, r.accent) + rnd(r.vel);
+        vel = Math.max(1, Math.min(127, Math.round(vel)));
+        var soft = ((96 - vel) / 96) * SOFT_LATE;
+        var phase = ((bar % DRIFT_BARS) + i / 16) / DRIFT_BARS;
+        var drift = Math.sin(phase * Math.PI * 2) * DRIFT;
+        var offset = rnd(r.jitter) + r.late + soft + drift;
+        hits.push({ row: ri, step: i, vel: vel, off: offset, dropped: dropped, name: r.name });
+      });
+    });
+    bar++;
+  }
+
+  function draw() {
+    var W = canvas.width, H = canvas.height;
+    var padL = 44, padR = 16, top = 22, rowH = (H - top - 10) / rows.length;
+    var stepW = (W - padL - padR) / STEPS;
+    var pxPerMs = stepW / MS_PER_16TH;
+    ctx.clearRect(0, 0, W, H);
+    ctx.font = '500 12px "JetBrains Mono", monospace';
+    ctx.textBaseline = 'middle';
+
+    // grid
+    for (var s = 0; s <= STEPS; s++) {
+      var x = padL + s * stepW;
+      ctx.strokeStyle = tok('--grid');
+      ctx.lineWidth = (s % 4 === 0) ? 1.5 : 1;
+      ctx.globalAlpha = (s % 4 === 0) ? 1 : 0.55;
+      ctx.beginPath(); ctx.moveTo(x, top - 6); ctx.lineTo(x, H - 8); ctx.stroke();
+      if (s % 16 === 0 && s < STEPS) {
+        ctx.globalAlpha = 1; ctx.fillStyle = tok('--muted'); ctx.textAlign = 'left';
+        ctx.fillText('bar ' + (s / 16 + 1), x + 4, 8);
+      }
+    }
+    ctx.globalAlpha = 1;
+    // row labels
+    rows.forEach(function (r, ri) {
+      ctx.fillStyle = tok('--muted'); ctx.textAlign = 'left';
+      ctx.fillText(r.name, 8, top + ri * rowH + rowH / 2);
+    });
+    // hits
+    hits.forEach(function (h) {
+      var cx = padL + h.step * stepW + h.off * pxPerMs * 2.2; // exaggerate ms so the eye can see it
+      var cy = top + h.row * rowH + rowH / 2;
+      var rad = 3 + (h.vel / 127) * 6;
+      ctx.beginPath(); ctx.arc(cx, cy, rad, 0, Math.PI * 2);
+      if (h.dropped) { ctx.strokeStyle = tok('--accent'); ctx.lineWidth = 1.5; ctx.stroke(); }
+      else { ctx.fillStyle = tok('--cyan'); ctx.fill(); }
+    });
+  }
+
+  var lastHit = -1;
+  function tickReadout() {
+    var live = hits.filter(function (h) { return !h.dropped; });
+    if (!live.length) return;
+    lastHit = (lastHit + 1) % live.length;
+    var h = live[lastHit];
+    var sign = h.off >= 0 ? '+' : '−';
+    var moved = h.vel - 96;
+    readout.textContent = h.name + '  ' + sign + Math.abs(h.off).toFixed(1) + ' ms  vel ' + h.vel + '  (' + (moved >= 0 ? '+' : '−') + Math.abs(moved) + ')';
+  }
+
+  roll(); draw();
+  if (!reduce) {
+    setInterval(function () { roll(); draw(); }, 4000);
+    setInterval(tickReadout, 260);
+  } else {
+    tickReadout();
+  }
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function () { css = getComputedStyle(document.documentElement); draw(); });
+})();
+</script>
+</body>
+</html>
