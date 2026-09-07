@@ -32,7 +32,7 @@ var SIXTEENTHS_PER_BEAT = 4;
 var GRID_WEIGHT = [1.0, -0.5, 0.25, -0.5];
 var DOWNBEAT_BONUS = 0.5;
 
-// TR-8S default note map, for the readout only.
+// TR-8S default note map, for the readout when a row has no name.
 var NOTE_NAMES = {
   36: "BD", 37: "RS", 38: "SD", 39: "HC", 42: "CH", 43: "LT",
   46: "OH", 47: "MT", 49: "CC", 50: "HT", 51: "RC"
@@ -54,7 +54,7 @@ function timesig(num, den) {
 
 // --- controls ---
 
-function ctl(name) {
+function control(name) {
   var o = ctlCache[name];
   if (!o) {
     var p = (typeof patcher !== "undefined") ? patcher : null;
@@ -64,13 +64,30 @@ function ctl(name) {
         warned[name] = true;
         post("infinite-drummer: no control named " + name + " (using 0)\n");
       }
-      return 0;
+      return null;
     }
     ctlCache[name] = o;
   }
+  return o;
+}
+
+function ctl(name) {
+  var o = control(name);
+  if (!o) return 0;
   var v = o.getvalueof();
   if (v && typeof v === "object" && v.length !== undefined) v = v[0];
   return (typeof v === "number") ? v : 0;
+}
+
+// A textedit's value comes back as a symbol, or a list of symbols for
+// multi-word text; join it back into one string.
+function ctlText(name) {
+  var o = control(name);
+  if (!o) return "";
+  var v = o.getvalueof();
+  if (v === undefined || v === null) return "";
+  if (typeof v === "object" && v.length !== undefined) v = Array.prototype.join.call(v, " ");
+  return String(v).replace(/^\s+|\s+$/g, "");
 }
 
 function findRow(note) {
@@ -136,7 +153,7 @@ function noteOn(note, vel) {
   var r = "r" + row + "_";
   if (Math.random() * 100 >= ctl(r + "chance")) {
     queueOff(note, -1);
-    readout(noteName(note) + "  skipped");
+    readout(rowName(row, note) + "  skipped");
     return;
   }
   var amt = ctl("g_amount") / 100;
@@ -151,7 +168,7 @@ function noteOn(note, vel) {
 
   send(note, v, delay);
   queueOff(note, delay);
-  readout(noteName(note) + "  " + signed(offset, 1) + " ms   v " + v + " (" + signed(v - vel, 0) + ")");
+  readout(rowName(row, note) + "  " + signed(offset, 1) + " ms   v " + v + " (" + signed(v - vel, 0) + ")");
 }
 
 function noteOff(note) {
@@ -174,8 +191,8 @@ function send(note, vel, delay) {
 
 // --- readout / housekeeping ---
 
-function noteName(note) {
-  return NOTE_NAMES[note] || ("n" + note);
+function rowName(row, note) {
+  return ctlText("r" + row + "_name") || NOTE_NAMES[note] || ("n" + note);
 }
 
 function signed(x, decimals) {
@@ -198,7 +215,7 @@ function status() {
        " amount " + ctl("g_amount") + " look " + ctl("g_look") + "\n");
   for (var i = 1; i <= ROWS; i++) {
     var r = "r" + i + "_";
-    post("  row " + i + ": note " + ctl(r + "note") + " jit " + ctl(r + "jit") +
+    post("  row " + i + " \"" + ctlText(r + "name") + "\": note " + ctl(r + "note") + " jit " + ctl(r + "jit") +
          " late " + ctl(r + "late") + " vel " + ctl(r + "vel") + " acc " + ctl(r + "acc") +
          " chance " + ctl(r + "chance") + "\n");
   }

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Generate infinite-drummer.maxpat: the [js] engine, MIDI/transport plumbing,
-and the presentation UI (8 instrument rows x 6 controls, plus globals).
+and the presentation UI (8 instrument rows x name + 6 controls, plus globals).
 
     python3 device/gen_maxpat.py && python3 device/build_amxd.py
 
@@ -16,16 +16,16 @@ OUT = Path(__file__).parent / "infinite-drummer.maxpat"
 # live.* parameter unit styles
 U_INT, U_TIME, U_PCT, U_MIDI = 0, 2, 5, 8
 
-# TR-8S default kit: note, jitter ms, late ms, vel +/-, accent, chance %
+# TR-8S default kit: name, note, jitter ms, late ms, vel +/-, accent, chance %
 ROWS = [
-    (36, 3, 0, 6, 4, 100),   # BD
-    (38, 5, 2, 10, 6, 100),  # SD
-    (42, 8, 0, 18, 10, 100), # CH
-    (46, 8, 3, 14, 6, 100),  # OH
-    (37, 6, 2, 12, 4, 100),  # RS
-    (39, 6, 4, 8, 2, 100),   # HC
-    (43, 6, 2, 12, 4, 100),  # LT
-    (47, 6, 2, 12, 4, 100),  # MT
+    ("BD", 36, 3, 0, 6, 4, 100),
+    ("SD", 38, 5, 2, 10, 6, 100),
+    ("CH", 42, 8, 0, 18, 10, 100),
+    ("OH", 46, 8, 3, 14, 6, 100),
+    ("RS", 37, 6, 2, 12, 4, 100),
+    ("HC", 39, 6, 4, 8, 2, 100),
+    ("LT", 43, 6, 2, 12, 4, 100),
+    ("MT", 47, 6, 2, 12, 4, 100),
 ]
 COLS = [
     # key, header, short, min, max, unit
@@ -45,7 +45,8 @@ GLOBALS = [
 ]
 
 # presentation geometry (device is 169 px tall in Live)
-GRID_X, GRID_Y, COL_W, COL_PITCH, ROW_PITCH, BOX_H = 126, 20, 50, 54, 17, 15
+NAME_X, NAME_W = 126, 60
+GRID_X, GRID_Y, COL_W, COL_PITCH, ROW_PITCH, BOX_H = NAME_X + NAME_W + 4, 20, 50, 54, 17, 15
 UI_DX, UI_DY = 420, 30  # where the UI objects sit in patching view
 
 boxes, lines, counter = [], [], [0]
@@ -149,11 +150,29 @@ for i, (var, text, short, lo, hi, init, unit) in enumerate(GLOBALS):
     param("live.numbox", (58, y + 12, 56, BOX_H), var, text, short, lo, hi, init, unit)
 
 # ---------------------------------------------------------------- UI: rows
+comment("row names: textedit in presentation, pattr (Blob parameter) saves the text with the Live set",
+        30, 480, 560)
+label("Name", (NAME_X, 5, NAME_W, 12), size=9.0)
 for c, (key, header, short, lo, hi, unit) in enumerate(COLS):
     label(header, (GRID_X + c * COL_PITCH, 5, COL_W, 12), size=9.0)
-for r, defaults in enumerate(ROWS, start=1):
+for r, (name, *defaults) in enumerate(ROWS, start=1):
+    y = GRID_Y + (r - 1) * ROW_PITCH
+    # The engine reads the name from the textedit (scripting name r{r}_name).
+    # A textedit is not a Live parameter, so a pattr with parameter mode on and
+    # type Blob (3) is bound to it (middle outlet -> textedit) to persist the text.
+    field = ui("textedit", (NAME_X, y, NAME_W, BOX_H), numinlets=1, numoutlets=4,
+               outlettype=["", "int", "", ""], varname=f"r{r}_name", text=name,
+               fontsize=9.0)
+    store = obj(f"pattr r{r}_name_store", 30 + (r - 1) * 105, 510, 100, 1, 3, ["", "", ""],
+                parameter_enable=1,
+                saved_object_attributes={"parameter_enable": 1, "parameter_mappable": 0},
+                saved_attribute_attributes={"valueof": {
+                    "parameter_initial": [name], "parameter_initial_enable": 1,
+                    "parameter_longname": f"R{r} Name", "parameter_shortname": "Name",
+                    "parameter_type": 3}})
+    connect(store, 1, field, 0)
     for c, (key, header, short, lo, hi, unit) in enumerate(COLS):
-        rect = (GRID_X + c * COL_PITCH, GRID_Y + (r - 1) * ROW_PITCH, COL_W, BOX_H)
+        rect = (GRID_X + c * COL_PITCH, y, COL_W, BOX_H)
         param("live.numbox", rect, f"r{r}_{key}", f"R{r} {short}", short, lo, hi,
               defaults[c], unit)
 
